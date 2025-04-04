@@ -1,5 +1,4 @@
 import numpy as np 
-from geometry_processing import project_points_on_face, get_normal
 from sklearn.decomposition import PCA
 from scipy.linalg import lu
 from scipy.optimize import linear_sum_assignment

@@ -2,8 +2,6 @@ import numpy as np
 import ifcopenshell
 from pathlib import Path
 from utils import  Graph
-import collision
-import geometry_processing as GP
 import compute_proxy as CP
 # ===================================================================================
 # Global Variables for import and export file paths

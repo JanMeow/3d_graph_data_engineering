@@ -1,6 +1,5 @@
 import numpy as np
-import trimesh
-import trimesh.smoothing
+
 """
 This module contains the boolean opserations that are used for merging collision shapes
 or touching shapes
@@ -83,79 +82,3 @@ def get_polygon_area(arr):
   x = arr[:,0]
   y = arr[:,1]
   return 0.5 * np.abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
-# ====================================================================
-# Display Functions
-# ==============================================================  ======
-def clipping_plane():
-   return
-def showMesh(vf_list):
-  meshes = [trimesh.Trimesh(vertices =v, faces =f) for v,f in vf_list]
-  scene = trimesh.Scene(meshes)
-  scene.show()
-def colour_palette():
-   return
-# ====================================================================
-# 3D Boolean Operations face
-# ====================================================================
-def boolean_3D(nodes, operation="union", return_type = "trimesh", engine = "manifold", atol = 0.01):
-    """
-    Perform a boolean operation (union, intersection, difference) on multiple 3D meshes.
-
-    Parameters:
-    - nodes (list): List of nodes containing `geom_info` with "vertex" and "face".
-    - operation (str): Type of boolean operation ("union", "intersection", "difference").
-
-    Returns:
-    - vertices (np.ndarray): Array of resulting mesh vertices (float32).
-    - faces (np.ndarray): Array of resulting mesh faces (uint32).
-    """
-    # Preprocess the nodes to elimate gap due to floating point error
-    preprocessing(nodes, atol = atol)
-
-    if len(nodes) < 2:
-        raise ValueError("At least two meshes are required for a boolean operation.")
-
-    # Convert node geometries to trimesh objects
-    meshes = [
-        trimesh.Trimesh(vertices=node.geom_info["vertex"], 
-                        faces=node.geom_info["face"]) 
-        for node in nodes
-    ]
-
-    if operation == "union":
-        result = trimesh.boolean.union(meshes, engine = engine)
-    elif operation == "intersection":
-        result = trimesh.boolean.intersection(meshes, engine = engine)
-    elif operation == "difference":
-        result = trimesh.boolean.difference(meshes, engine = engine)
-    else:
-        raise ValueError(f"Invalid operation type: {operation}")
-    result = clean_mesh(result)
-    if return_type == "trimesh":
-        return result
-    elif return_type == "vf_list":
-      return np.array(result.vertices, dtype=np.float32), np.array(result.faces, dtype=np.uint32)
-def preprocessing(nodes, atol = 0.01):
-    for i in range(len(nodes[1:])):
-      prev = nodes[i-1]
-      current = nodes[i]
-      m0 = prev.geom_info["vertex"]
-      m1 = current.geom_info["vertex"]
-      i,j = np_intersect_rows_atol(m0, m1, atol=atol)
-      if len(i) > 0:
-        #  set the vertex to be the same
-        for m0_idx, m1_idx in zip(i, j):
-          current.geom_info["vertex"][m1_idx] = prev.geom_info["vertex"][m0_idx]
-    return True
-def clean_mesh(mesh):
-   mesh.remove_duplicate_faces()
-   mesh.merge_vertices()
-   mesh.merge_vertices()
-
-   mesh.fix_normals()
-   return mesh
-
-
-# ====================================================================
-# 2D Boolean Operations
-# ====================================================================

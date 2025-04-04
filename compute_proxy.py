@@ -57,7 +57,7 @@ Intrinsic_features= {
     "Global_X_Extent": float,
     "Global_Y_Extent": float,
     "Global_Z_Extent": float,
-    "rel_x_y,z_position_in_the_model/building":tuple(float), #lineary dependent on other features
+    "rel_x_y,z_position_in_the_model/building":(float), #lineary dependent on other features
     "z_axis_aligned": bool,
     "number_of_vertices_in_base": int,
     # ==================================
@@ -101,9 +101,26 @@ def get_Intrinsic_features(graph, guid):
     # Get the base vertex number and area
     number_of_vertices_in_base, AABB_base_area = get_base_info(node)
     OOBB_base_area = np.around(min_max_extents[0] * min_max_extents[1], round_to)
-    # Get the relative position to the building and to the floor
-    get_relative_position_to_building(graph, node)
-    return 
+    # Get the relative position to the world assuming its one building now
+    rel_position_to_world = get_relative_position_to_world(graph, node)
+
+    # Features 
+    Intrinsic_features= {
+    "AABB_X_Extent": node.geom_info["bbox"][1][0] - node.geom_info["bbox"][0][0],
+    "OOBB_X_Extent": min_max_extents[0],
+    "AABB_Y_Extent": node.geom_info["bbox"][1][1] - node.geom_info["bbox"][0][1],
+    "OOBB_Y_Extent": min_max_extents[1],
+    "AABB_Z_Extent": node.geom_info["bbox"][1][2] - node.geom_info["bbox"][0][2],
+    "OOBB_Z_Extent": min_max_extents[2],
+    "AABB_base_area": AABB_base_area,
+    "OOBB_Base_area": OOBB_base_area,
+    "number_of_vertices_in_base": number_of_vertices_in_base,
+    "Global_X_Extent": rel_position_to_world[0],
+    "Global_Y_Extent": rel_position_to_world[1],
+    "Global_Z_Extent": rel_position_to_world[2],
+    "z_axis_aligned": z_axis_aligned,
+    }
+    return Intrinsic_features
 def get_contextural_features(graph, node):
     # Get Neighbours
     upper,lower,left,right = assign_neighbours(node)
@@ -171,7 +188,7 @@ def get_base_info(node):
         for f in base_f:
             AABB_base_area += GP.get_polygon_area(f)
     return number_of_vertices_in_base, np.round(AABB_base_area, decimals= round_to)
-def get_relative_position_to_building(graph, node):
+def get_relative_position_to_world(graph, node):
     world_max = graph.bbox.copy()
     bbox = node.geom_info["bbox"]
     world_extent = world_max[1] - world_max[0]

@@ -1,5 +1,4 @@
 import numpy as np
-import trimesh
 import ifcopenshell
 import ifcopenshell.geom
 import ifcopenshell.util.shape

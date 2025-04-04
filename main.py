@@ -37,7 +37,7 @@ def main():
     
     guid = "1QmrSv$7f8vB34GVkkI57J"
     intrinsic_features = CP.get_Intrinsic_features(graph, guid)
-    contextual_features = CP.get_contextual_features(graph, guid)
+    contextual_features = CP.get_contextural_features(graph, guid)
     print("Intrinsic features: ", intrinsic_features)
     print("Contextual features: ", contextual_features)
 

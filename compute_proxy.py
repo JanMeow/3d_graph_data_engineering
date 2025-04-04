@@ -121,7 +121,8 @@ def get_Intrinsic_features(graph, guid):
     "z_axis_aligned": z_axis_aligned,
     }
     return Intrinsic_features
-def get_contextural_features(graph, node):
+def get_contextural_features(graph, guid):
+    node = graph.node_dict[guid]
     # Get Neighbours
     upper,lower,left,right = assign_neighbours(node)
     # Get number of neighbours of same type

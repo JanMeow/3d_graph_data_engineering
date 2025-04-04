@@ -147,7 +147,7 @@ def get_contextural_features(graph, node):
     "horizontal_relatives": horizontal_relatives, # python counter of dict
     "vertical_relatives": vertical_relatives,
 }
-    return Contextural_features2
+    return Contextural_features
 def get_oobb(node):
     vertex = node.geom_info["vertex"]
     _, principal_axes, min_max_bounds = C.oobb_pca(vertex, n_components=3)

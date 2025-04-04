@@ -67,7 +67,7 @@ Intrinsic_features= {
     # We assume that we have one building for now, if not can run some clusterning alogoithm to determine how many buildings are there ?
     "relative_position_to_building": float, #problem could be some ifc models dont even have building, are there alternatives?
 }
-Contextural_features2 = {
+Contextural_features = {
     "upper": "ifctype",
     "lower": "ifctype",
     "left": "ifctype",
@@ -126,11 +126,28 @@ def get_contextural_features(graph, node):
     upper,lower,left,right = assign_neighbours(node)
     # Get number of neighbours of same type
     number_of_neighbours_of_same_type = len([n for n in node.near if n.geom_type == node.geom_type])
-    # Get most appeared horizontal neighbours 
+    # Get horizontal neighbours and their counts
     horizontal_relatives = get_horizontal_relatives(graph, node)
-     # Test Prints
-    print("Upper: ", upper , "Lower: ", lower, "Left: ", left, "Right: ", right)
-    return
+    # Get Vertical neighbours
+    vertical_relatives = None
+    # Get Cluster size and distribution
+    cluster_size = 0
+    cluster_cp_distribution = 0
+
+     # Result
+    Contextural_features = {
+    "upper": upper.geomtype,
+    "lower": lower.geomtype,
+    "left": left.geomtype,
+    "right": right.geomtype,
+    "number_of_neighbours_of_same_type": number_of_neighbours_of_same_type,
+    "variances of the direct neighbours cp": float, # not sure
+    "cluster_size":cluster_size,
+    "cluster_cp_distribution": cluster_cp_distribution, 
+    "horizontal_relatives": horizontal_relatives, # python counter of dict
+    "vertical_relatives": vertical_relatives,
+}
+    return Contextural_features2
 def get_oobb(node):
     vertex = node.geom_info["vertex"]
     _, principal_axes, min_max_bounds = C.oobb_pca(vertex, n_components=3)

@@ -36,8 +36,9 @@ def main():
                          if guid != node.guid]
     
     guid = "1QmrSv$7f8vB34GVkkI57J"
-    intrinsic_features = CP.get_Intrinsic_features(graph, guid)
-    contextual_features = CP.get_contextural_features(graph, guid)
+    node = graph.node_dict[guid]
+    intrinsic_features = CP.get_Intrinsic_features(graph, node)
+    contextual_features = CP.get_contextural_features(graph, node)
     print("Intrinsic features: ", intrinsic_features)
     print("Contextual features: ", contextual_features)
 

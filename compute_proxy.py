@@ -86,13 +86,12 @@ round_to = 2
 # ====================================================================
 # Compute the features for the element
 # ====================================================================
-def get_Intrinsic_features(graph, guid):
+def get_Intrinsic_features(graph, node):
     """
     The algorithm should also work a bit differently depending on whether there is labelled element
     if there is none, we need to first guess the element not based on the surrounding elements but based on the element itself
     then do it iteratively until it gives the highest confidence score
     """
-    node = graph.node_dict[guid]
     # PCA
     principal_axes, min_max_extents= get_oobb(node)
     node.principal_axes = principal_axes
@@ -121,10 +120,9 @@ def get_Intrinsic_features(graph, guid):
     "z_axis_aligned": z_axis_aligned,
     }
     return Intrinsic_features
-def get_contextural_features(graph, guid):
-    node = graph.node_dict[guid]
+def get_contextural_features(graph, node):
     # Get Neighbours
-    upper,lower,left,right = assign_neighbours(node)
+    neighbours = assign_neighbours(node)
     # Get number of neighbours of same type
     number_of_neighbours_of_same_type = len([n for n in node.near if n.geom_type == node.geom_type])
     # Get horizontal neighbours and their counts
@@ -137,10 +135,10 @@ def get_contextural_features(graph, guid):
 
      # Result
     Contextural_features = {
-    "upper": upper.geomtype,
-    "lower": lower.geomtype,
-    "left": left.geomtype,
-    "right": right.geomtype,
+    "upper": neighbours[0],
+    "lower": neighbours[1],
+    "left": neighbours[2],
+    "right": neighbours[3],
     "number_of_neighbours_of_same_type": number_of_neighbours_of_same_type,
     "variances of the direct neighbours cp": float, # not sure
     "cluster_size":cluster_size,
@@ -192,7 +190,8 @@ def assign_neighbours(node, atol = 0.01):
         left = None
     elif right.guid == node.guid:
         right = None
-    return upper, lower, left, right
+    results = [n.geom_type if n != None else None for n in [upper, lower, left, right]]
+    return results
 def get_base_info(node):
     vertex = node.geom_info["vertex"]
     face = node.geom_info["face"]

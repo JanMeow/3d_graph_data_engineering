@@ -3,12 +3,13 @@ import numpy as np
 import geometry_processing as GP
 import collision as C
 from scipy.optimize import linear_sum_assignment
-from collections import Counter
+from collections import Counter 
 
 # Compute the apropriate type of the element based on the geometry and the position of the element
 # ====================================================================
 """
     ### Two step classification apporach
+    clasfication label 
     Computes the most possible element type of an ifcProxy element.
     or later extend to seeing if elements are mistyped based on a confidence score
     Below are some observations to generate a criterion:
@@ -45,6 +46,15 @@ from collections import Counter
 # ===================================================================================
 # Global Variables for features type and rounding
 # ===================================================================================
+classfication_label = {
+    "IfcWall": 0, #Can further classify into outer or inner wall
+    "IfcSlab": 1,
+    "IfcRoof": 2,
+    "IfcColumn": 3,
+    "IfcBeam": 4,
+    "IfcCurtainWall": 5,
+    "IfcFooting": 6,
+}
 Intrinsic_features= {
     "AABB_X_Extent": float,
     "OOBB_X_Extent": float,
@@ -54,12 +64,22 @@ Intrinsic_features= {
     "OOBB_Z_Extent": float,
     "AABB_base_area": float,
     "OOBB_Base_area": float,
-    "Global_X_Extent": float,
-    "Global_Y_Extent": float,
-    "Global_Z_Extent": float,
-    "rel_x_y,z_position_in_the_model/building":(float), #lineary dependent on other features
+    "World_CP": float,
+    "World_X_start": float,
+    "World_X_end": float,
+    "World_Y_start": float,
+    "World_Y_end": float,
+    "World_Z_start": float,
+    "World_Z_end": float,
+    "self_x_start":float,
+    "self_x_end":float,
+    "self_y_start":float,
+    "self_y_end":float,
+    "self_z_start":float,
     "z_axis_aligned": bool,
     "number_of_vertices_in_base": int,
+    "total_number_of_vertices": int,
+    "total_number_of_faces": int,
     # ==================================
     # Can kind of approximate this by extending the bounding box volume by typical floor height
     # and then computing the relative position to the building?
@@ -76,7 +96,7 @@ Contextural_features = {
     "variances of the direct neighbours cp": float, # not sure
     "cluster_size":int,
     "cluster_cp_distribution": float, 
-    "horizontal_relatives": list[str("ifctype")], # python counter of dict
+    "horizontal_relatives": list[str("ifctype")], # python counter of dict varying vector length though and positon information is important
     "vertical_relatives": list[str("ifctype")],
 }
 
@@ -86,23 +106,40 @@ round_to = 2
 # ====================================================================
 # Compute the features for the element
 # ====================================================================
-def get_Intrinsic_features(graph, node):
+def get_Intrinsic_features(graph, guid):
     """
     The algorithm should also work a bit differently depending on whether there is labelled element
     if there is none, we need to first guess the element not based on the surrounding elements but based on the element itself
     then do it iteratively until it gives the highest confidence score
-    """
-    # PCA
-    principal_axes, min_max_extents= get_oobb(node)
-    node.principal_axes = principal_axes
-    # Test if the element is z aligned (roof are often not z aligned)
-    z_axis_aligned = is_z_axis_aligned(node, atol = 1e-2)
-    # Get the base vertex number and area
-    number_of_vertices_in_base, AABB_base_area = get_base_info(node)
-    OOBB_base_area = np.around(min_max_extents[0] * min_max_extents[1], round_to)
-    # Get the relative position to the world assuming its one building now
-    rel_position_to_world = get_relative_position_to_world(graph, node)
 
+    *Optimization*:
+    Currently uses a O(n) face normal check for otpmization to know if we can skip OOBB check which is O3 
+    In the future, can do a sampling for the first 20 meshes to see if over 50% of them are axis aligned
+    if yes, then keep the hybrid apporach, if not, then just ignore the check axis aligned and perform PCA directly
+    another way is to use the is_xyz_aligned function to check which axis is aligned and then reduce the PCA n_component 
+
+    """
+    node = graph.node_dict[guid]
+    world_xyz = graph.bbox
+    self_xyz = node.geom_info["bbox"]
+    # Check if object is XYZ Axis aligned, if yes no need check PCA 
+    is_xyz_aligned = is_axis_aligned(node, atol = 1e-3, threshold = 0.9)
+    # PCA if needed
+    if is_xyz_aligned:
+        principal_axes = np.eye(3)
+        z_axis_aligned = True
+        node.principal_axes = principal_axes
+        number_of_vertices_in_base, AABB_base_area = get_base_info(node)
+        min_max_extents = self_xyz[1] - self_xyz[0]
+        OOBB_base_area = AABB_base_area
+    else:
+        principal_axes, min_max_extents= get_oobb(node)
+        node.principal_axes = principal_axes
+         # Test if the element is z aligned (roof are often not z aligned)
+        z_axis_aligned = is_z_axis_aligned(node, atol = 1e-2)
+        # Get the base vertex number and area
+        number_of_vertices_in_base, AABB_base_area = get_base_info(node)
+        OOBB_base_area = np.around(min_max_extents[0] * min_max_extents[1], round_to)
     # Features 
     Intrinsic_features= {
     "AABB_X_Extent": node.geom_info["bbox"][1][0] - node.geom_info["bbox"][0][0],
@@ -113,25 +150,39 @@ def get_Intrinsic_features(graph, node):
     "OOBB_Z_Extent": min_max_extents[2],
     "AABB_base_area": AABB_base_area,
     "OOBB_Base_area": OOBB_base_area,
-    "number_of_vertices_in_base": number_of_vertices_in_base,
-    "Global_X_Extent": rel_position_to_world[0],
-    "Global_Y_Extent": rel_position_to_world[1],
-    "Global_Z_Extent": rel_position_to_world[2],
+    "World_CP": GP.get_centre_point(world_xyz),
+    "World_X_start": world_xyz[0][0],
+    "World_X_end": world_xyz[1][0],
+    "World_Y_start": world_xyz[0][1],
+    "World_Y_end": world_xyz[1][1],
+    "World_Z_start": world_xyz[0][2],
+    "World_Z_end": world_xyz[1][2],
+    "self_x_start":self_xyz[0][0],
+    "self_x_end":self_xyz[1][0],
+    "self_y_start":self_xyz[0][1],
+    "self_y_end":self_xyz[1][1],
+    "self_z_start":self_xyz[0][2],
+    "self_z_end":self_xyz[1][2],
     "z_axis_aligned": z_axis_aligned,
+    "number_of_vertices_in_base": number_of_vertices_in_base,
+    "total_number_of_vertices": len(node.geom_info["vertex"]),
+    "total_number_of_faces": len(node.geom_info["face"])
     }
     return Intrinsic_features
-def get_contextural_features(graph, node):
+def get_contextural_features(graph, guid):
+    node = graph.node_dict[guid]
+    self_cp = GP.get_centre_point(node.geom_info["bbox"])
     # Get Neighbours
     neighbours = assign_neighbours(node)
-    # Get number of neighbours of same type
-    number_of_neighbours_of_same_type = len([n for n in node.near if n.geom_type == node.geom_type])
     # Get horizontal neighbours and their counts
     horizontal_relatives = get_horizontal_relatives(graph, node)
     # Get Vertical neighbours
     vertical_relatives = None
     # Get Cluster size and distribution
-    cluster_size = 0
-    cluster_cp_distribution = 0
+    cluster = get_cluster(node)
+    cluster_bbox, cluster_cp = get_cluster_distribution(cluster)
+    distance_to_cluster_cp = np.linalg.norm(np.vstack((self_cp,cluster_cp)), axis = 0)
+    print(np.linalg.norm(np.vstack((self_cp,cluster_cp)), axis = 1))
 
      # Result
     Contextural_features = {
@@ -139,10 +190,18 @@ def get_contextural_features(graph, node):
     "lower": neighbours[1],
     "left": neighbours[2],
     "right": neighbours[3],
-    "number_of_neighbours_of_same_type": number_of_neighbours_of_same_type,
+    "number_of_neighbours_of_same_type": len([n for n in node.near if n.geom_type == node.geom_type]),
     "variances of the direct neighbours cp": float, # not sure
-    "cluster_size":cluster_size,
-    "cluster_cp_distribution": cluster_cp_distribution, 
+    "cluster_size":len(cluster),
+    "cluster_cp": cluster_cp,
+    "cluster_X_start": cluster_bbox[0][0],
+    "cluster_X_end": cluster_bbox[1][0],
+    "cluster_Y_start": cluster_bbox[0][1],
+    "cluster_Y_end": cluster_bbox[1][1],
+    "cluster_Z_start": cluster_bbox[0][2],
+    "cluster_Z_end": cluster_bbox[1][2],
+    "distance_to_cluster_cp":distance_to_cluster_cp,
+    "cluster_cp_distribution": None, 
     "horizontal_relatives": horizontal_relatives, # python counter of dict
     "vertical_relatives": vertical_relatives,
 }
@@ -205,15 +264,23 @@ def get_base_info(node):
         for f in base_f:
             AABB_base_area += GP.get_polygon_area(f)
     return number_of_vertices_in_base, np.round(AABB_base_area, decimals= round_to)
-def get_relative_position_to_world(graph, node):
-    world_max = graph.bbox.copy()
-    bbox = node.geom_info["bbox"]
-    world_extent = world_max[1] - world_max[0]
-    bbox_extent = bbox[1] - bbox[0]
-    rel_position_to_world = bbox_extent / world_extent
-    return rel_position_to_world
-    
-
+def is_axis_aligned(node, atol=1e-3, threshold=0.9):
+    v = node.geom_info["vertex"]
+    f = node.geom_info["face"]
+    # Compute face normals
+    v1 = v[f[:, 1]] - v[f[:, 0]]
+    v2 = v[f[:, 2]] - v[f[:, 0]]
+    normals = np.cross(v1, v2)
+    normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)  # normalize
+    # Check if normals are close to axis directions
+    axis_dirs = np.array([[1,0,0], [0,1,0], [0,0,1],
+                          [-1,0,0], [0,-1,0], [0,0,-1]])
+    aligned_count = 0
+    for n in normals:
+        if np.any(np.all(np.abs(n - axis_dirs) < atol, axis=1)):
+            aligned_count += 1
+    ratio = aligned_count / len(normals)
+    return ratio > threshold
 def get_horizontal_relatives(graph, node, extent = 0.05):
     """
     1. Reduce the bounding box of the element by a scale factor and use this as collision test
@@ -228,6 +295,24 @@ def get_horizontal_relatives(graph, node, extent = 0.05):
     bvh_query = graph.bvh_query(world_max)
     bvh_query_types = Counter([graph.node_dict[guid].geom_type for guid in bvh_query])
     return bvh_query
+def get_vertical_relatives(graph, node, extent = 0.05):
+    return
+def get_cluster(node):
+    stack = [node]
+    cluster = set()
+    while stack:
+        current = stack.pop()
+        cluster.add(current)
+        for n in current.near:
+            if n.geom_type == current.geom_type and n not in cluster:
+                stack.append(n)
+    return cluster
+def get_cluster_distribution(cluster):
+    bboxs = np.vstack([node.geom_info["bbox"] for node in cluster])
+    cps = np.array([GP.get_centre_point(bbox) for bbox in bboxs])
+    cluster_bbox = np.array((np.min(bboxs, axis=0), np.max(bboxs, axis=0)))
+    cluster_cp = GP.get_centre_point(cluster_bbox)
+    return cluster_bbox, cluster_cp
 def is_z_axis_aligned(node, atol = 1e-2):
     """
     Computes if the element is tilted or not

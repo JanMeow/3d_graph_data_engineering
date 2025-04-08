@@ -99,7 +99,16 @@ Contextural_features = {
     "horizontal_relatives": list[str("ifctype")], # python counter of dict varying vector length though and positon information is important
     "vertical_relatives": list[str("ifctype")],
 }
-
+cluster_features ={
+    "cluster_size": 12,
+    "mean_height": 3.0,
+    "std_height": 0.2,
+    "orientation_variance": 0.05,
+    "bbox_volume": 86.0,
+    "centroid_x": 42.3,
+    "centroid_y": 15.2,
+    "z_alignment_consistency": 1.0
+}
 round_to = 2
 # ===================================================================================
 # ===================================================================================
@@ -119,26 +128,25 @@ def get_Intrinsic_features(graph, guid):
     another way is to use the is_xyz_aligned function to check which axis is aligned and then reduce the PCA n_component 
 
     """
-    node = graph.node_dict[guid]
+    node = graph[guid]
     world_xyz = graph.bbox
     self_xyz = node.geom_info["bbox"]
     # Check if object is XYZ Axis aligned, if yes no need check PCA 
     is_xyz_aligned = is_axis_aligned(node, atol = 1e-3, threshold = 0.9)
+    number_of_vertices_in_base, AABB_base_area = get_base_info(node)
     # PCA if needed
     if is_xyz_aligned:
-        principal_axes = np.eye(3)
-        z_axis_aligned = True
-        node.principal_axes = principal_axes
-        number_of_vertices_in_base, AABB_base_area = get_base_info(node)
+        node.principal_axes = np.eye(3)
+        node.is_axis_aligned = True
+        node.z_axis_aligned = True
         min_max_extents = self_xyz[1] - self_xyz[0]
         OOBB_base_area = AABB_base_area
     else:
+        node.is_axis_aligned = False
         principal_axes, min_max_extents= get_oobb(node)
         node.principal_axes = principal_axes
-         # Test if the element is z aligned (roof are often not z aligned)
-        z_axis_aligned = is_z_axis_aligned(node, atol = 1e-2)
+        node.z_axis_aligned = is_z_axis_aligned(node, atol = 1e-2)
         # Get the base vertex number and area
-        number_of_vertices_in_base, AABB_base_area = get_base_info(node)
         OOBB_base_area = np.around(min_max_extents[0] * min_max_extents[1], round_to)
     # Features 
     Intrinsic_features= {
@@ -163,14 +171,15 @@ def get_Intrinsic_features(graph, guid):
     "self_y_end":self_xyz[1][1],
     "self_z_start":self_xyz[0][2],
     "self_z_end":self_xyz[1][2],
-    "z_axis_aligned": z_axis_aligned,
+    "z_axis_aligned": node.z_axis_aligned,
     "number_of_vertices_in_base": number_of_vertices_in_base,
     "total_number_of_vertices": len(node.geom_info["vertex"]),
     "total_number_of_faces": len(node.geom_info["face"])
     }
+    node.intrinsic_features = Intrinsic_features
     return Intrinsic_features
 def get_contextural_features(graph, guid):
-    node = graph.node_dict[guid]
+    node = graph[guid]
     self_cp = GP.get_centre_point(node.geom_info["bbox"])
     # Get Neighbours
     neighbours = assign_neighbours(node)
@@ -180,10 +189,7 @@ def get_contextural_features(graph, guid):
     vertical_relatives = None
     # Get Cluster size and distribution
     cluster = get_cluster(node)
-    cluster_bbox, cluster_cp = get_cluster_distribution(cluster)
-    distance_to_cluster_cp = np.linalg.norm(np.vstack((self_cp,cluster_cp)), axis = 0)
-    print(np.linalg.norm(np.vstack((self_cp,cluster_cp)), axis = 1))
-
+    Cluster_features = get_cluster_features(cluster)
      # Result
     Contextural_features = {
     "upper": neighbours[0],
@@ -191,8 +197,28 @@ def get_contextural_features(graph, guid):
     "left": neighbours[2],
     "right": neighbours[3],
     "number_of_neighbours_of_same_type": len([n for n in node.near if n.geom_type == node.geom_type]),
-    "variances of the direct neighbours cp": float, # not sure
-    "cluster_size":len(cluster),
+    "horizontal_relatives": horizontal_relatives, # python counter of dict
+    "vertical_relatives": vertical_relatives,
+}
+    return Contextural_features | Cluster_features
+def get_cluster_features(cluster):
+    cluster_bbox, cluster_cp = get_cluster_distribution(cluster)
+    bboxs = np.stack([node.geom_info["bbox"] for node in cluster], axis =1)
+    cps = (bboxs[0] + bboxs[1])/2 
+    distances_to_cluster_cp = np.linalg.norm(cps - cluster_cp, axis = 1)
+    variances_of_distance_to_cluster_cp = np.var(distances_to_cluster_cp)
+    # variances of cp coordinate across xyz
+    variances_of_cp = np.round(np.var(cps, axis=0), decimals=round_to)
+    # Mean height, width and depth of the cluster element
+    # variances of orientation
+    orientations = np.array([node.principal_axes for node in cluster])
+    var_x = np.var(orientations[:,0], axis=0)
+    var_y = np.var(orientations[:,1], axis=0)
+    var_z = np.var(orientations[:,2], axis=0)
+    print(var_x,var_y,var_z)
+
+    cluster_features ={
+    "cluster_size": len(cluster),
     "cluster_cp": cluster_cp,
     "cluster_X_start": cluster_bbox[0][0],
     "cluster_X_end": cluster_bbox[1][0],
@@ -200,12 +226,14 @@ def get_contextural_features(graph, guid):
     "cluster_Y_end": cluster_bbox[1][1],
     "cluster_Z_start": cluster_bbox[0][2],
     "cluster_Z_end": cluster_bbox[1][2],
-    "distance_to_cluster_cp":distance_to_cluster_cp,
-    "cluster_cp_distribution": None, 
-    "horizontal_relatives": horizontal_relatives, # python counter of dict
-    "vertical_relatives": vertical_relatives,
-}
-    return Contextural_features
+    "variances_of_cp": variances_of_cp,
+    "variances_of_distance_to_cluster_cp": variances_of_distance_to_cluster_cp,
+    "mean_height": 0,
+    "std_height": 0,
+    "orientation_variance": 0,
+    "z_alignment_consistency": len([node for node in cluster if node.z_axis_aligned]) / len(cluster),
+    }
+    return cluster_features
 def get_oobb(node):
     vertex = node.geom_info["vertex"]
     _, principal_axes, min_max_bounds = C.oobb_pca(vertex, n_components=3)
@@ -271,7 +299,14 @@ def is_axis_aligned(node, atol=1e-3, threshold=0.9):
     v1 = v[f[:, 1]] - v[f[:, 0]]
     v2 = v[f[:, 2]] - v[f[:, 0]]
     normals = np.cross(v1, v2)
-    normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)  # normalize
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)  # normalize
+    valid = norms[:, 0] > 1e-6 # avoid division by zero
+    normals[valid] = normals[valid] / norms[valid]
+    bad_faces = np.where(norms[:, 0] < 1e-6)[0]
+    # if len(bad_faces) > 0:
+    #     print("Degenerate face indices:", bad_faces)
+    #     print(node.geom_type)
+    #     print(v[f[bad_faces]])
     # Check if normals are close to axis directions
     axis_dirs = np.array([[1,0,0], [0,1,0], [0,0,1],
                           [-1,0,0], [0,-1,0], [0,0,-1]])
@@ -293,10 +328,20 @@ def get_horizontal_relatives(graph, node, extent = 0.05):
     world_max[1][2] = bbox_z_centre +  extent
 
     bvh_query = graph.bvh_query(world_max)
-    bvh_query_types = Counter([graph.node_dict[guid].geom_type for guid in bvh_query])
-    return bvh_query
+    bvh_query_types = Counter([graph[guid].geom_type for guid in bvh_query])
+    return bvh_query_types
 def get_vertical_relatives(graph, node, extent = 0.05):
-    return
+    world_max = graph.bbox.copy()
+    bbox = node.geom_info["bbox"]
+    bbox_x_centre = (bbox[1][0] + bbox[0][0]) / 2
+    bbox_y_centre = (bbox[1][1] + bbox[0][1]) / 2
+    world_max[0][0] = bbox_x_centre - extent
+    world_max[1][0] = bbox_x_centre + extent
+    world_max[0][1] = bbox_y_centre - extent
+    world_max[1][1] = bbox_y_centre + extent
+    bvh_query = graph.bvh_query(world_max)
+    bvh_query_types = Counter([graph[guid].geom_type for guid in bvh_query])
+    return bvh_query_types
 def get_cluster(node):
     stack = [node]
     cluster = set()

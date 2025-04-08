@@ -25,23 +25,24 @@ def main():
     # ====================================================================
     graph = Graph.create(root)
     graph.build_bvh()
-    # node = graph.node_dict[guid]
+    # node = graph[guid]
     # queries = graph.bvh_query(node.geom_info["bbox"])
 
     # Build the graph based on relationship
     # ====================================================================
     for node in graph.node_dict.values():
         if node.geom_info != None:
-            node.near = [graph.node_dict[guid] for guid in graph.bvh_query(node.geom_info["bbox"])
+            node.near = [graph[guid] for guid in graph.bvh_query(node.geom_info["bbox"])
                          if guid != node.guid]
     
-    guid = "2BqFyeJLnF$hTVLzqi1ZF6"
-    node = graph.node_dict[guid]
-    intrinsic_features = CP.get_Intrinsic_features(graph, guid)
-    # print("Intrinsic features: ", intrinsic_features)
+    guid = "3g_LwPgxPAxRWRbwjTaX27"
+    node = graph[guid]
+    for key in graph.node_dict.keys():
+        CP.get_Intrinsic_features(graph, key)
+    print("Finished Extracting Intrinsic Features")
 
     contextual_features = CP.get_contextural_features(graph, guid)
-    # print("Contextual features: ", contextual_features)
+    print("Contextual features: ", contextual_features)
 
 if __name__ == "__main__":
     main()

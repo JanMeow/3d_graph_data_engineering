@@ -9,26 +9,29 @@ from collections import deque
 def default_print(node, depth):
   print(f"CURRENT DEPTH : {depth} [TYPE] {node.is_a()} [GUID] ({node.GlobalId}) [NAME] {node.Name}")
 
-def bfs_traverse(base_node, list_contained_elements = True, func = None):
+def bfs_traverse(base_node, list_contained_elements = True, func = None, default_print = False):
   queue = deque([base_node])
   depth = 0
   result = []
   while len(queue) !=0 :
     current_node = queue.popleft()
-    default_print(current_node, depth)
+    if default_print:
+      default_print(current_node, depth)
     if func:
       result.append(func(current_node))
 
     if hasattr(current_node, "ContainsElements") and len(current_node.ContainsElements) != 0:
       for element_rel in current_node.ContainsElements:
-        print(f"Contained Elements: {len(element_rel.RelatedElements)}")
+        if default_print:
+          print(f"Contained Elements: {len(element_rel.RelatedElements)}")
         if list_contained_elements:
           for child_element in element_rel.RelatedElements:
             queue.append(child_element)
     if hasattr(current_node, "IsDecomposedBy") and len(current_node.IsDecomposedBy) != 0:
       depth +=1
       for child_rel in current_node.IsDecomposedBy:
-        print(f"Number of child: {len(child_rel.RelatedObjects)}")
+        if default_print:
+          print(f"Number of child: {len(child_rel.RelatedObjects)}")
         for child_obj in child_rel.RelatedObjects:
           queue.append(child_obj)
   print("Function ended, No more spatial child")

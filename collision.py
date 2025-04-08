@@ -19,7 +19,7 @@ Note also GJK works on convex shape only because of the support function calcula
 # ====================================================================
 # Borad phase Collision Detection
 # Currently the splitting has a bit of a problem of missing 1-2 collision
-# since I sort the list only using the min corner
+# since I sort the list only using the min corner 
 # ====================================================================
 class BVH ():
     def __init__(self, bbox, nodes, leaf = False):

@@ -42,7 +42,7 @@ def main():
     print("Finished Extracting Intrinsic Features")
 
     contextual_features = CP.get_contextural_features(graph, guid)
-    print("Contextual features: ", contextual_features)
+    # print("Contextual features: ", contextual_features)
 
 if __name__ == "__main__":
     main()

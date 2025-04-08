@@ -55,60 +55,7 @@ classfication_label = {
     "IfcCurtainWall": 5,
     "IfcFooting": 6,
 }
-Intrinsic_features= {
-    "AABB_X_Extent": float,
-    "OOBB_X_Extent": float,
-    "AABB_Y_Extent": float,
-    "OOBB_Y_Extent": float,
-    "AABB_Z_Extent": float,
-    "OOBB_Z_Extent": float,
-    "AABB_base_area": float,
-    "OOBB_Base_area": float,
-    "World_CP": float,
-    "World_X_start": float,
-    "World_X_end": float,
-    "World_Y_start": float,
-    "World_Y_end": float,
-    "World_Z_start": float,
-    "World_Z_end": float,
-    "self_x_start":float,
-    "self_x_end":float,
-    "self_y_start":float,
-    "self_y_end":float,
-    "self_z_start":float,
-    "z_axis_aligned": bool,
-    "number_of_vertices_in_base": int,
-    "total_number_of_vertices": int,
-    "total_number_of_faces": int,
-    # ==================================
-    # Can kind of approximate this by extending the bounding box volume by typical floor height
-    # and then computing the relative position to the building?
-    "relative_position_to_storey": float, #problem could be some ifc models dont even have building, are there alternatives?
-    # We assume that we have one building for now, if not can run some clusterning alogoithm to determine how many buildings are there ?
-    "relative_position_to_building": float, #problem could be some ifc models dont even have building, are there alternatives?
-}
-Contextural_features = {
-    "upper": "ifctype",
-    "lower": "ifctype",
-    "left": "ifctype",
-    "right": "ifctype",
-    "number_of_neighbours_of_same_type": int,
-    "variances of the direct neighbours cp": float, # not sure
-    "cluster_size":int,
-    "cluster_cp_distribution": float, 
-    "horizontal_relatives": list[str("ifctype")], # python counter of dict varying vector length though and positon information is important
-    "vertical_relatives": list[str("ifctype")],
-}
-cluster_features ={
-    "cluster_size": 12,
-    "mean_height": 3.0,
-    "std_height": 0.2,
-    "orientation_variance": 0.05,
-    "bbox_volume": 86.0,
-    "centroid_x": 42.3,
-    "centroid_y": 15.2,
-    "z_alignment_consistency": 1.0
-}
+
 round_to = 2
 # ===================================================================================
 # ===================================================================================
@@ -130,7 +77,15 @@ def get_Intrinsic_features(graph, guid):
     """
     node = graph[guid]
     world_xyz = graph.bbox
+    world_extent = world_xyz[1] - world_xyz[0]
     self_xyz = node.geom_info["bbox"]
+    self_extent = self_xyz[1] - self_xyz[0]
+    # Surface Area and Volume
+    area = np.sum(get_surface_area_and_volume(node))
+    # Normalize bounding box
+    relative_position_min = (self_xyz[0] - world_xyz[0]) / world_extent
+    relative_position_max = (self_xyz[1] - world_xyz[1]) / world_extent
+    relative_cp = (GP.get_centre_point(node.geom_info["bbox"]) - world_xyz[0])/ world_extent
     # Check if object is XYZ Axis aligned, if yes no need check PCA 
     is_xyz_aligned = is_axis_aligned(node, atol = 1e-3, threshold = 0.9)
     number_of_vertices_in_base, AABB_base_area = get_base_info(node)
@@ -148,6 +103,7 @@ def get_Intrinsic_features(graph, guid):
         node.z_axis_aligned = is_z_axis_aligned(node, atol = 1e-2)
         # Get the base vertex number and area
         OOBB_base_area = np.around(min_max_extents[0] * min_max_extents[1], round_to)
+
     # Features 
     Intrinsic_features= {
     "AABB_X_Extent": node.geom_info["bbox"][1][0] - node.geom_info["bbox"][0][0],
@@ -158,20 +114,24 @@ def get_Intrinsic_features(graph, guid):
     "OOBB_Z_Extent": min_max_extents[2],
     "AABB_base_area": AABB_base_area,
     "OOBB_Base_area": OOBB_base_area,
-    "World_CP": GP.get_centre_point(world_xyz),
-    "World_X_start": world_xyz[0][0],
-    "World_X_end": world_xyz[1][0],
-    "World_Y_start": world_xyz[0][1],
-    "World_Y_end": world_xyz[1][1],
-    "World_Z_start": world_xyz[0][2],
-    "World_Z_end": world_xyz[1][2],
-    "self_x_start":self_xyz[0][0],
-    "self_x_end":self_xyz[1][0],
-    "self_y_start":self_xyz[0][1],
-    "self_y_end":self_xyz[1][1],
-    "self_z_start":self_xyz[0][2],
-    "self_z_end":self_xyz[1][2],
+    "World_X_Extent": world_extent[0],
+    "World_Y_Extent": world_extent[1],
+    "World_Z_Extent": world_extent[2],
+    "Self_X_Extent": self_extent[0],
+    "Self_Y_Extent": self_extent[1],
+    "Self_Z_Extent": self_extent[2],
+    "Relative_CP_X": relative_cp[0],
+    "Relative_CP_Y": relative_cp[1],
+    "Relative_CP_Z": relative_cp[2],
+    "Relative_position_min_X": relative_position_min[0],
+    "Relative_position_min_Y": relative_position_min[1],
+    "Relative_position_min_Z": relative_position_min[2],
+    "Relative_position_max_X": relative_position_max[0],
+    "Relative_position_max_Y": relative_position_max[1],
+    "Relative_position_max_Z": relative_position_max[2],
     "z_axis_aligned": node.z_axis_aligned,
+    "surface_area":None,
+    "volume":None,
     "number_of_vertices_in_base": number_of_vertices_in_base,
     "total_number_of_vertices": len(node.geom_info["vertex"]),
     "total_number_of_faces": len(node.geom_info["face"])
@@ -197,7 +157,7 @@ def get_contextural_features(graph, guid):
     "left": neighbours[2],
     "right": neighbours[3],
     "number_of_neighbours_of_same_type": len([n for n in node.near if n.geom_type == node.geom_type]),
-    "horizontal_relatives": horizontal_relatives, # python counter of dict
+    "horizontal_relatives": horizontal_relatives, # python counter of dict need to one hot encode later
     "vertical_relatives": vertical_relatives,
 }
     return Contextural_features | Cluster_features
@@ -209,14 +169,22 @@ def get_cluster_features(cluster):
     variances_of_distance_to_cluster_cp = np.var(distances_to_cluster_cp)
     # variances of cp coordinate across xyz
     variances_of_cp = np.round(np.var(cps, axis=0), decimals=round_to)
-    # Mean height, width and depth of the cluster element
     # variances of orientation
     orientations = np.array([node.principal_axes for node in cluster])
-    var_x = np.var(orientations[:,0], axis=0)
-    var_y = np.var(orientations[:,1], axis=0)
-    var_z = np.var(orientations[:,2], axis=0)
-    print(var_x,var_y,var_z)
+    var_x_orientation = np.linalg.norm(np.var(orientations[:,0], axis=0))
+    var_y_orientation  = np.linalg.norm(np.var(orientations[:,1], axis=0))
+    var_z_orientation  = np.linalg.norm(np.var(orientations[:,2], axis=0))
+    variance_vector = np.array([var_x_orientation, var_y_orientation, var_z_orientation])
+    anisotropy_ratio = np.max(variance_vector) / np.min(variance_vector + 1e-8)
+    # Mean height, width and depth of the cluster element
+    heights = [node.intrinsic_features["OOBB_Z_Extent"] for node in cluster]
+    #Longer side is defined as the width of the element and shorter as depth
+    oxy = np.array([np.vstack((node.intrinsic_features["OOBB_X_Extent"], node.intrinsic_features["OOBB_Y_Extent"])) for node in cluster])
+    sorted = np.sort(np.array([oxy]), axis=2)
+    widths = sorted[:,1]
+    depths = sorted[:,0]
 
+    # Cluster features
     cluster_features ={
     "cluster_size": len(cluster),
     "cluster_cp": cluster_cp,
@@ -228,9 +196,16 @@ def get_cluster_features(cluster):
     "cluster_Z_end": cluster_bbox[1][2],
     "variances_of_cp": variances_of_cp,
     "variances_of_distance_to_cluster_cp": variances_of_distance_to_cluster_cp,
-    "mean_height": 0,
-    "std_height": 0,
-    "orientation_variance": 0,
+    "variances_of_orientation_X": np.round(var_x_orientation, decimals=round_to),
+    "variances_of_orientation_Y": np.round(var_y_orientation, decimals=round_to),
+    "variances_of_orientation_Z": np.round(var_z_orientation, decimals=round_to),
+    "anisotropy_ratio": anisotropy_ratio,
+    "height_mean": np.mean(heights),
+    "height_var": np.var(heights),
+    "width_mean": np.mean(widths),
+    "width_var": np.var(widths),
+    "depth_mean": np.mean(depths),
+    "depth_var": np.var(depths),
     "z_alignment_consistency": len([node for node in cluster if node.z_axis_aligned]) / len(cluster),
     }
     return cluster_features
@@ -292,6 +267,27 @@ def get_base_info(node):
         for f in base_f:
             AABB_base_area += GP.get_polygon_area(f)
     return number_of_vertices_in_base, np.round(AABB_base_area, decimals= round_to)
+def get_surface_area_and_volume(node):
+    v = node.geom_info["vertex"]
+    f = node.geom_info["face"]
+    # it will also clean degenerate faces
+    normal_directions = GP.check_normal_orientation_and_clean_degenerates(node)
+    fliped_normals = np.where(normal_directions <0)[0]
+    if len(fliped_normals) > 0:
+        print("before",len(fliped_normals))
+        f = f.copy()
+        f[fliped_normals] = f[fliped_normals][:, [0, 2, 1]]
+        node.geom_info["face"] = f
+        normal_directions = GP.check_normal_orientation_and_clean_degenerates(node)
+        fliped_normals = np.where(normal_directions <0)[0]
+        print("after",len(fliped_normals))
+        if len(fliped_normals) > 0:
+            print("Fliped normals are not cleaned")
+            print(node.guid)
+            print(normal_directions)
+    area = GP.triangle_areas(v,f)
+    volume = GP.triangle_mesh_volume(v,f)
+    return area
 def is_axis_aligned(node, atol=1e-3, threshold=0.9):
     v = node.geom_info["vertex"]
     f = node.geom_info["face"]
@@ -300,14 +296,7 @@ def is_axis_aligned(node, atol=1e-3, threshold=0.9):
     v2 = v[f[:, 2]] - v[f[:, 0]]
     normals = np.cross(v1, v2)
     norms = np.linalg.norm(normals, axis=1, keepdims=True)  # normalize
-    valid = norms[:, 0] > 1e-6 # avoid division by zero
-    normals[valid] = normals[valid] / norms[valid]
-    bad_faces = np.where(norms[:, 0] < 1e-6)[0]
-    # if len(bad_faces) > 0:
-    #     print("Degenerate face indices:", bad_faces)
-    #     print(node.geom_type)
-    #     print(v[f[bad_faces]])
-    # Check if normals are close to axis directions
+    normals /= norms
     axis_dirs = np.array([[1,0,0], [0,1,0], [0,0,1],
                           [-1,0,0], [0,-1,0], [0,0,-1]])
     aligned_count = 0

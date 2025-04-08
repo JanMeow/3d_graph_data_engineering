@@ -79,6 +79,74 @@ def np_intersect_rows_atol(arr1,arr2, atol = 0.01):
   i,j = np.where(matches)
   return i,j
 def get_polygon_area(arr):
+  """
+   Assumes the polygon is simple and vertices are ordered.
+   """
   x = arr[:,0]
   y = arr[:,1]
   return 0.5 * np.abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+def get_polygon_area_3d(arr):
+  """
+  Compute the area of a 3D planar polygon using the general vector method.
+  Assumes the polygon is simple and vertices are ordered.
+  """
+  area_vector = np.zeros(3)
+  for i in range(len(arr)):
+      p1 = arr[i]
+      p2 = arr[(i + 1) % len(arr)]
+      area_vector += np.cross(p1, p2)
+  return 0.5 * np.linalg.norm(area_vector)
+def triangle_areas(vertices, faces):
+    A = vertices[faces[:, 0]]
+    B = vertices[faces[:, 1]]
+    C = vertices[faces[:, 2]]
+    # Vector edges
+    AB = B - A
+    AC = C - A
+    # Cross product and norm
+    cross = np.cross(AB, AC)
+    area = 0.5 * np.linalg.norm(cross, axis=1)
+    return area
+def check_normal_orientation_and_clean_degenerates(node):
+  vertices, faces = node.geom_info["vertex"], node.geom_info["face"]
+  A = vertices[faces[:, 0]]
+  B = vertices[faces[:, 1]]
+  C = vertices[faces[:, 2]]
+  # Face centers
+  face_centers = (A + B + C) / 3
+  # Face normals
+  normals = np.cross(B - A, C - A)
+  norms = np.linalg.norm(normals, axis=1, keepdims=True)
+  # Clean the degenerate faces
+  valid = np.where(norms[:, 0] > 1e-6)
+  if len(valid[0]) != len(faces):
+    f = faces.copy()
+    node.geom_info["face"] = f[valid]
+    print(node.guid)
+    return check_normal_orientation_and_clean_degenerates(node)
+  # Normalize the normals
+  normals/= norms
+  # Mesh centroid
+  mesh_centroid = np.mean(vertices, axis=0)
+  # Vectors from centroid to face centers
+  to_faces = face_centers - mesh_centroid
+  # Dot product
+  dot = np.einsum('ij,ij->i', normals, to_faces)
+  # Positive → outward, Negative → inward
+  orientation = np.sign(dot)
+  return orientation  # +1 = outward, -1 = inward, 0 = edge case
+def triangle_mesh_volume(vertices, faces):
+  A = vertices[faces[:, 0]]
+  B = vertices[faces[:, 1]]
+  C = vertices[faces[:, 2]]
+  # Compute cross product A x B
+  cross = np.cross(A, B)
+  # Compute dot with C
+  volume = np.einsum('ij,ij->i', cross, C) / 6.0
+  return np.abs(np.sum(volume)) 
+def remove_unreferenced_vertices(vertices, faces):
+    unique_indices = np.unique(faces.flatten())
+    index_map = {old: i for i, old in enumerate(unique_indices)}
+    new_vertices = vertices[unique_indices]
+    new_faces = np.vectorize(index_map.get)(faces)
+    return new_vertices, new_faces

@@ -25,8 +25,6 @@ def main():
     # ====================================================================
     graph = Graph.create(root)
     graph.build_bvh()
-    # node = graph[guid]
-    # queries = graph.bvh_query(node.geom_info["bbox"])
 
     # Build the graph based on relationship
     # ====================================================================
@@ -37,12 +35,12 @@ def main():
     
     guid = "3g_LwPgxPAxRWRbwjTaX27"
     node = graph[guid]
-    for key in graph.node_dict.keys():
-        CP.get_Intrinsic_features(graph, key)
+    intrindic_features = [CP.get_Intrinsic_features(graph, guid) for guid in graph.node_dict.keys()]
     print("Finished Extracting Intrinsic Features")
+    contextural_features = [CP.get_contextural_features(graph, guid) for guid in graph.node_dict.keys()]
 
-    contextual_features = CP.get_contextural_features(graph, guid)
-    print("Contextual features: ", contextual_features)
+    # contextual_features = CP.get_contextural_features(graph, guid)
+    # print("Contextual features: ", contextual_features)
 
 if __name__ == "__main__":
     main()

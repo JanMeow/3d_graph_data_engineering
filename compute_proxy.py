@@ -186,11 +186,12 @@ def get_cluster_features(cluster):
     # Mean height, width and depth of the cluster element
     heights = [node.intrinsic_features["OOBB_Z_Extent"] for node in cluster]
     #Longer side is defined as the width of the element and shorter as depth
-    oxy = np.array([np.vstack((node.intrinsic_features["OOBB_X_Extent"], node.intrinsic_features["OOBB_Y_Extent"])) for node in cluster])
-    sorted = np.sort(np.array([oxy]), axis=2)
+    oxy = np.array([np.vstack([node.intrinsic_features["OOBB_X_Extent"], 
+                               node.intrinsic_features["OOBB_Y_Extent"]
+                               ]) for node in cluster])
+    sorted = np.sort(oxy, axis=1)
     widths = sorted[:,1]
     depths = sorted[:,0]
-
     # Cluster features
     cluster_features ={
     "cluster_size": len(cluster),
@@ -246,7 +247,6 @@ def assign_neighbours(node, atol = 0.01):
     projection = (cps - O) @ horizontal_direction.T
     left = neighbours[np.argmin(projection)]
     right = neighbours[np.argmax(projection)] 
-
     # Compare the neighbours to yourself if you are upper, lower, left, right
     if abs(upper.geom_info["bbox"][1][2] - bbox[1][2]) < atol or upper.guid == node.guid:
         upper = None

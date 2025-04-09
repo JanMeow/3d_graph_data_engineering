@@ -8,7 +8,7 @@ import compute_proxy as CP
 # ===================================================================================
 ifc_folder = Path("data")/"ifc"
 ifc_folder.mkdir(parents=True, exist_ok=True)
-ifc_path = ifc_folder/"test1.ifc"
+ifc_path = ifc_folder/"ML_train_data_0.ifc"
 export_path = "data/ifc/new_model.ifc"
 # ===================================================================================
 # ===================================================================================
@@ -42,7 +42,7 @@ def main():
     print("Finished Extracting Intrinsic Features")
 
     contextual_features = CP.get_contextural_features(graph, guid)
-    # print("Contextual features: ", contextual_features)
+    print("Contextual features: ", contextual_features)
 
 if __name__ == "__main__":
     main()

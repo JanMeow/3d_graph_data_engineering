@@ -3,7 +3,7 @@ import numpy as np
 import geometry_processing as GP
 import collision as C
 from scipy.optimize import linear_sum_assignment
-from collections import Counter 
+from collections import Counter, defaultdict
 
 # Compute the apropriate type of the element based on the geometry and the position of the element
 # ====================================================================
@@ -81,7 +81,12 @@ def get_Intrinsic_features(graph, guid):
     self_xyz = node.geom_info["bbox"]
     self_extent = self_xyz[1] - self_xyz[0]
     # Surface Area and Volume
-    area = np.sum(get_surface_area_and_volume(node))
+    area, normal, largest_face_area, volume = get_surface_area_and_volume(node)
+    # Check if the largest face is on xy plane or has vertical vector
+    if np.isclose(normal[2], 0 , atol = 1e-3):
+        largest_face_normal_orientation = 1     #0 means horizontal 1 has vertical vector
+    else:
+        largest_face_normal_orientation = 0
     # Normalize bounding box
     relative_position_min = (self_xyz[0] - world_xyz[0]) / world_extent
     relative_position_max = (self_xyz[1] - world_xyz[1]) / world_extent
@@ -130,8 +135,10 @@ def get_Intrinsic_features(graph, guid):
     "Relative_position_max_Y": relative_position_max[1],
     "Relative_position_max_Z": relative_position_max[2],
     "z_axis_aligned": node.z_axis_aligned,
-    "surface_area":None,
-    "volume":None,
+    "surface_area":area,
+    "volume":volume,
+    "largest_face_area": largest_face_area,
+    "largest_face_normal_orientation": largest_face_normal_orientation, 
     "number_of_vertices_in_base": number_of_vertices_in_base,
     "total_number_of_vertices": len(node.geom_info["vertex"]),
     "total_number_of_faces": len(node.geom_info["face"])
@@ -269,25 +276,34 @@ def get_base_info(node):
     return number_of_vertices_in_base, np.round(AABB_base_area, decimals= round_to)
 def get_surface_area_and_volume(node):
     v = node.geom_info["vertex"]
-    f = node.geom_info["face"]
-    # it will also clean degenerate faces
-    normal_directions = GP.check_normal_orientation_and_clean_degenerates(node)
-    fliped_normals = np.where(normal_directions <0)[0]
-    if len(fliped_normals) > 0:
-        print("before",len(fliped_normals))
-        f = f.copy()
-        f[fliped_normals] = f[fliped_normals][:, [0, 2, 1]]
-        node.geom_info["face"] = f
-        normal_directions = GP.check_normal_orientation_and_clean_degenerates(node)
-        fliped_normals = np.where(normal_directions <0)[0]
-        print("after",len(fliped_normals))
-        if len(fliped_normals) > 0:
-            print("Fliped normals are not cleaned")
-            print(node.guid)
-            print(normal_directions)
-    area = GP.triangle_areas(v,f)
-    volume = GP.triangle_mesh_volume(v,f)
-    return area
+    f = node.geom_info["face"].copy()
+    # Clean degenerate faces
+    normals, orientation, valid_mask = GP.check_orientation_and_clean_degenerate(v, f)
+    f= f[valid_mask]
+    # Check if the face normals are flipped
+    flipped = np.where(orientation <0)[0]
+    if len(flipped) > 0:
+        f[flipped] = f[flipped][:, [0, 2, 1]]
+        # Clean again in case flipping created new degenerate faces
+        normals, orientation, valid_mask = GP.check_orientation_and_clean_degenerate(v, f)
+        f = f[valid_mask]
+    # Save back
+    node.geom_info["face"] = f
+    node.geom_info["normal"] = normals
+    area = GP.triangle_areas(v, f)
+    volume = GP.triangle_mesh_volume(v, f)
+    normal, largest_face_area = get_largest_face_area(normals, area, precision=round_to)
+    return np.sum(area), normal, np.round(largest_face_area, decimals=round_to), volume
+def get_largest_face_area(normals, areas, precision=3):
+    # Round and convert normals to tuples
+    rounded_normals = [tuple(np.round(n, precision)) for n in normals]
+    # Sum areas for each unique normal
+    area_by_normal = defaultdict(float)
+    for normal, area in zip(rounded_normals, areas):
+        area_by_normal[normal] += area
+    # Get the dominant normal and its area
+    normal,area = max(area_by_normal.items(), key=lambda x: x[1])
+    return np.array(normal),float(area)  # (normal, total_area)
 def is_axis_aligned(node, atol=1e-3, threshold=0.9):
     v = node.geom_info["vertex"]
     f = node.geom_info["face"]

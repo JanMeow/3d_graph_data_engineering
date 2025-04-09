@@ -107,34 +107,24 @@ def triangle_areas(vertices, faces):
     cross = np.cross(AB, AC)
     area = 0.5 * np.linalg.norm(cross, axis=1)
     return area
-def check_normal_orientation_and_clean_degenerates(node):
-  vertices, faces = node.geom_info["vertex"], node.geom_info["face"]
-  A = vertices[faces[:, 0]]
-  B = vertices[faces[:, 1]]
-  C = vertices[faces[:, 2]]
-  # Face centers
-  face_centers = (A + B + C) / 3
-  # Face normals
-  normals = np.cross(B - A, C - A)
-  norms = np.linalg.norm(normals, axis=1, keepdims=True)
-  # Clean the degenerate faces
-  valid = np.where(norms[:, 0] > 1e-6)
-  if len(valid[0]) != len(faces):
-    f = faces.copy()
-    node.geom_info["face"] = f[valid]
-    print(node.guid)
-    return check_normal_orientation_and_clean_degenerates(node)
-  # Normalize the normals
-  normals/= norms
-  # Mesh centroid
-  mesh_centroid = np.mean(vertices, axis=0)
-  # Vectors from centroid to face centers
-  to_faces = face_centers - mesh_centroid
-  # Dot product
-  dot = np.einsum('ij,ij->i', normals, to_faces)
-  # Positive → outward, Negative → inward
-  orientation = np.sign(dot)
-  return orientation  # +1 = outward, -1 = inward, 0 = edge case
+def check_orientation_and_clean_degenerate(vertices, faces, eps=1e-6):
+    A = vertices[faces[:, 0]]
+    B = vertices[faces[:, 1]]
+    C = vertices[faces[:, 2]]
+
+    face_centers = (A + B + C) / 3
+    normals = np.cross(B - A, C - A)
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    valid = norms[:, 0] > eps
+    normals = normals[valid] / norms[valid]
+    face_centers = face_centers[valid]
+    faces = faces[valid]
+
+    centroid = np.mean(vertices, axis=0)
+    to_faces = face_centers - centroid
+    dot = np.einsum("ij,ij->i", normals, to_faces)
+    orientation = np.sign(dot)
+    return normals, orientation, valid
 def triangle_mesh_volume(vertices, faces):
   A = vertices[faces[:, 0]]
   B = vertices[faces[:, 1]]

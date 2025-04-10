@@ -81,18 +81,18 @@ def get_Intrinsic_features(graph, guid):
     self_xyz = node.geom_info["bbox"]
     self_extent = self_xyz[1] - self_xyz[0]
     # Surface Area and Volume
-    area, normal, largest_face_area, volume = get_surface_area_and_volume(node)
+    area, largest_normal, largest_face_area, volume = get_surface_area_and_volume(node)
     # Check if the largest face is on xy plane or has vertical vector
-    if np.isclose(normal[2], 0 , atol = 1e-3):
-        largest_face_normal_orientation = 1     #0 means horizontal 1 has vertical vector
+    if np.isclose(abs(largest_normal[2])-1, 0 , atol = 1e-3):
+        largest_face_z_alignment = True     #0 means horizontal 1 has vertical vector
     else:
-        largest_face_normal_orientation = 0
+        largest_face_z_alignment = False
     # Normalize bounding box
     relative_position_min = (self_xyz[0] - world_xyz[0]) / world_extent
     relative_position_max = (self_xyz[1] - world_xyz[1]) / world_extent
     relative_cp = (GP.get_centre_point(node.geom_info["bbox"]) - world_xyz[0])/ world_extent
     # Check if object is XYZ Axis aligned, if yes no need check PCA 
-    is_xyz_aligned = is_axis_aligned(node, atol = 1e-3, threshold = 0.9)
+    is_xyz_aligned, xyz_aligned_count, z_axis_align_count = is_axis_aligned(node, atol = 1e-3, threshold = 0.9)
     number_of_vertices_in_base, AABB_base_area = get_base_info(node)
     # PCA if needed
     if is_xyz_aligned:
@@ -138,10 +138,12 @@ def get_Intrinsic_features(graph, guid):
     "surface_area":area,
     "volume":volume,
     "largest_face_area": largest_face_area,
-    "largest_face_normal_orientation": largest_face_normal_orientation, 
+    "largest_face_normal_orientation": largest_face_z_alignment,
     "number_of_vertices_in_base": number_of_vertices_in_base,
     "total_number_of_vertices": len(node.geom_info["vertex"]),
-    "total_number_of_faces": len(node.geom_info["face"])
+    "total_number_of_faces": len(node.geom_info["face"]),
+    "total_number_of_XYZ_aligned_faces": xyz_aligned_count,
+    "total_number_of_Z_aligned_faces": z_axis_align_count,
     }
     node.intrinsic_features = Intrinsic_features
     return Intrinsic_features
@@ -156,7 +158,7 @@ def get_contextural_features(graph, guid):
     vertical_relatives = None
     # Get Cluster size and distribution
     cluster = get_cluster(node)
-    Cluster_features = get_cluster_features(cluster)
+    Cluster_features = get_cluster_features(graph, cluster)
      # Result
     Contextural_features = {
     "upper": neighbours[0],
@@ -168,10 +170,15 @@ def get_contextural_features(graph, guid):
     "vertical_relatives": vertical_relatives,
 }
     return Contextural_features | Cluster_features
-def get_cluster_features(cluster):
+def get_cluster_features(graph, cluster):
     cluster_bbox, cluster_cp = get_cluster_distribution(cluster)
+    # Convert cluster_bbox to relative position in the entire graph
+    world_extent = graph.bbox[1] - graph.bbox[0]
+    cluster_bbox = (cluster_bbox - graph.bbox[0])/world_extent
+    cluster_cp = (cluster_cp - graph.bbox[0])/world_extent
     bboxs = np.stack([node.geom_info["bbox"] for node in cluster], axis =1)
     cps = (bboxs[0] + bboxs[1])/2 
+    cps = (cps - graph.bbox[0])/world_extent
     distances_to_cluster_cp = np.linalg.norm(cps - cluster_cp, axis = 1)
     variances_of_distance_to_cluster_cp = np.var(distances_to_cluster_cp)
     # variances of cp coordinate across xyz
@@ -189,13 +196,15 @@ def get_cluster_features(cluster):
     oxy = np.array([np.vstack([node.intrinsic_features["OOBB_X_Extent"], 
                                node.intrinsic_features["OOBB_Y_Extent"]
                                ]) for node in cluster])
-    sorted = np.sort(oxy, axis=1)
-    widths = sorted[:,1]
-    depths = sorted[:,0]
+    sorted_oxy = np.sort(oxy, axis=1)
+    widths = sorted_oxy[:,1]
+    depths = sorted_oxy[:,0]
     # Cluster features
     cluster_features ={
     "cluster_size": len(cluster),
-    "cluster_cp": cluster_cp,
+    "cluster_cp_X": cluster_cp[0],
+    "cluster_cp_Y": cluster_cp[1],
+    "cluster_cp_Z": cluster_cp[2],
     "cluster_X_start": cluster_bbox[0][0],
     "cluster_X_end": cluster_bbox[1][0],
     "cluster_Y_start": cluster_bbox[0][1],
@@ -305,22 +314,18 @@ def get_largest_face_area(normals, areas, precision=3):
     normal,area = max(area_by_normal.items(), key=lambda x: x[1])
     return np.array(normal),float(area)  # (normal, total_area)
 def is_axis_aligned(node, atol=1e-3, threshold=0.9):
-    v = node.geom_info["vertex"]
-    f = node.geom_info["face"]
-    # Compute face normals
-    v1 = v[f[:, 1]] - v[f[:, 0]]
-    v2 = v[f[:, 2]] - v[f[:, 0]]
-    normals = np.cross(v1, v2)
-    norms = np.linalg.norm(normals, axis=1, keepdims=True)  # normalize
-    normals /= norms
+    normals = node.geom_info["normal"]
     axis_dirs = np.array([[1,0,0], [0,1,0], [0,0,1],
                           [-1,0,0], [0,-1,0], [0,0,-1]])
-    aligned_count = 0
+    xyz_aligned_count = 0
+    z_axis_align_count = 0
     for n in normals:
         if np.any(np.all(np.abs(n - axis_dirs) < atol, axis=1)):
-            aligned_count += 1
-    ratio = aligned_count / len(normals)
-    return ratio > threshold
+            xyz_aligned_count += 1
+        if np.isclose(abs(n[2]) -1,0, atol=atol):
+            z_axis_align_count += 1
+    ratio = xyz_aligned_count / len(normals)
+    return ratio > threshold, xyz_aligned_count, z_axis_align_count 
 def get_horizontal_relatives(graph, node, extent = 0.05):
     """
     1. Reduce the bounding box of the element by a scale factor and use this as collision test
@@ -370,3 +375,8 @@ def is_z_axis_aligned(node, atol = 1e-2):
     if np.isclose(node.principal_axes[2][2],1, atol=atol):
         return True
     return False
+def get_rel_position(graph, target_pt):
+    world_xyz = graph.bbox
+    world_extent = world_xyz[1] - world_xyz[0]
+    relative_position = (target_pt - world_xyz[0])/world_extent
+    return relative_position

@@ -140,3 +140,7 @@ def remove_unreferenced_vertices(vertices, faces):
     new_vertices = vertices[unique_indices]
     new_faces = np.vectorize(index_map.get)(faces)
     return new_vertices, new_faces
+def get_rel_position(graph, target_pt):
+  world_xyz = graph.bbox
+  world_extent = world_xyz[1] - world_xyz[0]
+  relative_position = (target_pt - world_xyz[0])/world_extent

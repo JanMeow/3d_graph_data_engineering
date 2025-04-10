@@ -81,7 +81,7 @@ def get_Intrinsic_features(graph, guid):
     self_xyz = node.geom_info["bbox"]
     self_extent = self_xyz[1] - self_xyz[0]
     # Surface Area and Volume
-    area, largest_normal, largest_face_area, volume = get_surface_area_and_volume(node)
+    area, largest_normal, largest_face_area, number_of_faces_in_largest_face, volume = get_surface_area_and_volume(node)
     # Check if the largest face is on xy plane or has vertical vector
     if np.isclose(abs(largest_normal[2])-1, 0 , atol = 1e-3):
         largest_face_z_alignment = True     #0 means horizontal 1 has vertical vector
@@ -134,16 +134,17 @@ def get_Intrinsic_features(graph, guid):
     "Relative_position_max_X": relative_position_max[0],
     "Relative_position_max_Y": relative_position_max[1],
     "Relative_position_max_Z": relative_position_max[2],
-    "z_axis_aligned": node.z_axis_aligned,
-    "surface_area":area,
-    "volume":volume,
-    "largest_face_area": largest_face_area,
-    "largest_face_normal_orientation": largest_face_z_alignment,
-    "number_of_vertices_in_base": number_of_vertices_in_base,
-    "total_number_of_vertices": len(node.geom_info["vertex"]),
-    "total_number_of_faces": len(node.geom_info["face"]),
-    "total_number_of_XYZ_aligned_faces": xyz_aligned_count,
-    "total_number_of_Z_aligned_faces": z_axis_align_count,
+    "Z_axis_aligned": node.z_axis_aligned,
+    "Surface_area":area,
+    "Volume":volume,
+    "Largest_face_area": largest_face_area,
+    "Largest_face_normal_orientation": largest_face_z_alignment,
+    "Number_of_vertices_in_base": number_of_vertices_in_base,
+    "Number_of_vertices": len(node.geom_info["vertex"]),
+    "Number_of_faces": len(node.geom_info["face"]),
+    "Number_of_XYZ_aligned_faces": xyz_aligned_count,
+    "Number_of_Z_aligned_faces": z_axis_align_count,
+    "Number_of_faces_in_largest_face":number_of_faces_in_largest_face
     }
     node.intrinsic_features = Intrinsic_features
     return Intrinsic_features
@@ -301,18 +302,22 @@ def get_surface_area_and_volume(node):
     node.geom_info["normal"] = normals
     area = GP.triangle_areas(v, f)
     volume = GP.triangle_mesh_volume(v, f)
-    normal, largest_face_area = get_largest_face_area(normals, area, precision=round_to)
-    return np.sum(area), normal, np.round(largest_face_area, decimals=round_to), volume
+    normal, largest_face_area, no_of_face = get_largest_face_area(normals, area, precision=round_to)
+    return np.sum(area), normal, np.round(largest_face_area, decimals=round_to), no_of_face, volume
 def get_largest_face_area(normals, areas, precision=3):
     # Round and convert normals to tuples
     rounded_normals = [tuple(np.round(n, precision)) for n in normals]
     # Sum areas for each unique normal
     area_by_normal = defaultdict(float)
     for normal, area in zip(rounded_normals, areas):
-        area_by_normal[normal] += area
+        if normal not in area_by_normal:
+            area_by_normal[normal] = []
+        area_by_normal[normal].append(area)
     # Get the dominant normal and its area
-    normal,area = max(area_by_normal.items(), key=lambda x: x[1])
-    return np.array(normal),float(area)  # (normal, total_area)
+    normal,area_list = max(area_by_normal.items(), key=lambda v: sum(v[1]))
+    # Number of faces in the largest area 
+    no_of_face = len(area_list)
+    return np.array(normal),sum(area_list),no_of_face
 def is_axis_aligned(node, atol=1e-3, threshold=0.9):
     normals = node.geom_info["normal"]
     axis_dirs = np.array([[1,0,0], [0,1,0], [0,0,1],

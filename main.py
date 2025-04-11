@@ -38,7 +38,8 @@ def main():
     intrindic_features = [CP.get_Intrinsic_features(graph, guid) for guid in graph.node_dict.keys()]
     # print("Finished Extracting Intrinsic Features")
     # contextural_features = [CP.get_contextural_features(graph, guid) for guid in graph.node_dict.keys()]
-    print(CP.get_contextural_features(graph, guid))
+    testing = CP.get_contextural_features(graph, guid)
+
 
 
 if __name__ == "__main__":

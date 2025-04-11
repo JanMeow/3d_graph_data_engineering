@@ -46,14 +46,16 @@ from collections import Counter, defaultdict
 # ===================================================================================
 # Global Variables for features type and rounding
 # ===================================================================================
-classfication_label = {
-    "IfcWall": 0, #Can further classify into outer or inner wall
-    "IfcSlab": 1,
-    "IfcRoof": 2,
-    "IfcColumn": 3,
-    "IfcBeam": 4,
-    "IfcCurtainWall": 5,
-    "IfcFooting": 6,
+label_map = {
+    "None": 0,
+    "IfcWall": 1, #Can further classfy into outer or inner
+    "IfcSlab": 2,
+    "IfcRoof": 3,
+    "IfcColumn": 4,
+    "IfcBeam": 5,
+    "IfcCurtainWall": 6,
+    "IfcFooting": 7,
+    "IfcPlate": 8
 }
 
 round_to = 2
@@ -83,10 +85,10 @@ def get_Intrinsic_features(graph, guid):
     # Surface Area and Volume
     area, largest_normal, largest_face_area, number_of_faces_in_largest_face, volume = get_surface_area_and_volume(node)
     # Check if the largest face is on xy plane or has vertical vector
-    if np.isclose(abs(largest_normal[2])-1, 0 , atol = 1e-3):
-        largest_face_z_alignment = True     #0 means horizontal 1 has vertical vector
+    if not np.isclose(largest_normal[2], 0 , atol = 1e-2):
+        Largest_face_normal_has_Z_vector = True     #0 means horizontal 1 has vertical vector
     else:
-        largest_face_z_alignment = False
+        Largest_face_normal_has_Z_vector = False
     # Normalize bounding box
     relative_position_min = (self_xyz[0] - world_xyz[0]) / world_extent
     relative_position_max = (self_xyz[1] - world_xyz[1]) / world_extent
@@ -138,7 +140,7 @@ def get_Intrinsic_features(graph, guid):
     "Surface_area":area,
     "Volume":volume,
     "Largest_face_area": largest_face_area,
-    "Largest_face_normal_orientation": largest_face_z_alignment,
+    "Largest_face_normal_has_Z_vector": Largest_face_normal_has_Z_vector,
     "Number_of_vertices_in_base": number_of_vertices_in_base,
     "Number_of_vertices": len(node.geom_info["vertex"]),
     "Number_of_faces": len(node.geom_info["face"]),
@@ -154,9 +156,9 @@ def get_contextural_features(graph, guid):
     # Get Neighbours
     neighbours = assign_neighbours(node)
     # Get horizontal neighbours and their counts
-    horizontal_relatives = get_horizontal_relatives(graph, node)
+    Horizontal_relatives = get_horizontal_relatives(graph, node)
     # Get Vertical neighbours
-    vertical_relatives = None
+    Vertical_relatives = get_vertical_relatives(graph, node)
     # Get Cluster size and distribution
     cluster = get_cluster(node)
     Cluster_features = get_cluster_features(graph, cluster)
@@ -167,10 +169,8 @@ def get_contextural_features(graph, guid):
     "left": neighbours[2],
     "right": neighbours[3],
     "number_of_neighbours_of_same_type": len([n for n in node.near if n.geom_type == node.geom_type]),
-    "horizontal_relatives": horizontal_relatives, # python counter of dict need to one hot encode later
-    "vertical_relatives": vertical_relatives,
 }
-    return Contextural_features | Cluster_features
+    return Contextural_features | Horizontal_relatives| Vertical_relatives| Cluster_features
 def get_cluster_features(graph, cluster):
     cluster_bbox, cluster_cp = get_cluster_distribution(cluster)
     # Convert cluster_bbox to relative position in the entire graph
@@ -344,7 +344,7 @@ def get_horizontal_relatives(graph, node, extent = 0.05):
 
     bvh_query = graph.bvh_query(world_max)
     bvh_query_types = Counter([graph[guid].geom_type for guid in bvh_query])
-    return bvh_query_types
+    return {"HR_"+ k: bvh_query_types[k] for k in label_map.keys()}
 def get_vertical_relatives(graph, node, extent = 0.05):
     world_max = graph.bbox.copy()
     bbox = node.geom_info["bbox"]
@@ -356,7 +356,7 @@ def get_vertical_relatives(graph, node, extent = 0.05):
     world_max[1][1] = bbox_y_centre + extent
     bvh_query = graph.bvh_query(world_max)
     bvh_query_types = Counter([graph[guid].geom_type for guid in bvh_query])
-    return bvh_query_types
+    return {"VR_"+ k: bvh_query_types[k] for k in label_map.keys()}
 def get_cluster(node):
     stack = [node]
     cluster = set()

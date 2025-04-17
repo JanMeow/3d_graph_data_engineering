@@ -285,11 +285,15 @@ class Graph:
                 # collisions.add(tuple(map(tuple,plane2)))
     return collisions
   @classmethod
-  def create(cls, root):
+  def create(cls, root, target_type = None):
     cls = cls(root.GlobalId)
     for node in bfs_traverse(root, list_contained_elements = True,func = write_to_node):
       if node!= None:
-        cls[node.guid] = node
+        if target_type != None:
+          if node.geom_type in target_type:
+            cls[node.guid] = node
+        else:
+          cls[node.guid] = node
     cls.get_bbox()
     print("Graph created")
     return cls

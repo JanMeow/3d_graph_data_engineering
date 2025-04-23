@@ -246,8 +246,7 @@ def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
     bbox = node.geom_info["bbox"]
     O = GP.get_centre_point(bbox)
     principal_axes = node.principal_axes
-    # neighbours = node.near + [node]
-    neighbours = node.near 
+    neighbours = node.near + [node]
     # Get the centre points of the neighbours and their bounding box
     cps = np.array([GP.get_centre_point(node.geom_info["bbox"]) for node in neighbours])
     bbox_arrays = np.array([node.geom_info["bbox"] for node in neighbours])
@@ -263,15 +262,13 @@ def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
     # Compare the neighbours to yourself if you are upper, lower, left, right
     if abs(upper.geom_info["bbox"][1][2] - bbox[1][2]) < atol or upper.guid == node.guid:
         upper = None
-    elif abs(lower.geom_info["bbox"][0][2] - bbox[0][2]) < atol or lower.guid == node.guid:
+    if abs(lower.geom_info["bbox"][0][2] - bbox[0][2]) < atol or lower.guid == node.guid:
         lower = None
-    # *** Generally you can not be more left or right than your neighbours ***
-    # Exeption is if you are a wall and you encomprises your neighbours aka maybe a window. Here we add a remark
-    # in that case, it would return yourself as left or rightneighbour so we just need to test test if the 
-    elif left.guid == node.guid:
+    if left.guid == node.guid:
         left = None
-    elif right.guid == node.guid:
+    if right.guid == node.guid:
         right = None
+
     results = [getattr(node, return_type, f"no {return_type} attribute") if n != None else None for n in [upper, lower, left, right]]
     return results
 def get_base_info(node):

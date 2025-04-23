@@ -246,7 +246,8 @@ def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
     bbox = node.geom_info["bbox"]
     O = GP.get_centre_point(bbox)
     principal_axes = node.principal_axes
-    neighbours = node.near + [node]
+    # neighbours = node.near + [node]
+    neighbours = node.near 
     # Get the centre points of the neighbours and their bounding box
     cps = np.array([GP.get_centre_point(node.geom_info["bbox"]) for node in neighbours])
     bbox_arrays = np.array([node.geom_info["bbox"] for node in neighbours])

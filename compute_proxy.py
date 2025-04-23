@@ -86,9 +86,9 @@ def get_Intrinsic_features(graph, guid):
     area, largest_normal, largest_face_area, number_of_faces_in_largest_face, volume = get_surface_area_and_volume(node)
     # Check if the largest face is on xy plane or has vertical vector
     if not np.isclose(largest_normal[2], 0 , atol = 1e-2):
-        Largest_face_normal_has_Z_vector = True     #0 means horizontal 1 has vertical vector
+        Largest_face_normal_has_Z_vector = 1     #0 means horizontal 1 has vertical vector
     else:
-        Largest_face_normal_has_Z_vector = False
+        Largest_face_normal_has_Z_vector = 0
     # Normalize bounding box
     relative_position_min = (self_xyz[0] - world_xyz[0]) / world_extent
     relative_position_max = (self_xyz[1] - world_xyz[1]) / world_extent
@@ -380,8 +380,8 @@ def is_z_axis_aligned(node, atol = 1e-2):
     Computes if the element is tilted or not
     """
     if np.isclose(node.principal_axes[2][2],1, atol=atol):
-        return True
-    return False
+        return 1
+    return 0
 def get_rel_position(graph, target_pt):
     world_xyz = graph.bbox
     world_extent = world_xyz[1] - world_xyz[0]

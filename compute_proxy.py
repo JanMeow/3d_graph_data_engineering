@@ -237,7 +237,7 @@ def get_oobb(node):
     row_ind, col_ind = linear_sum_assignment(-similarity)
     min_max_bounds = min_max_bounds[:,col_ind]
     return similarity[col_ind], min_max_bounds[1] - min_max_bounds[0]
-def assign_neighbours(node, atol = 0.01):
+def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
     """
     1. Get the upper, lower, left, right neighbours of an element based on comparing centre point
     2. Compare the neighbours to yourself if you are upper, lower, 
@@ -271,7 +271,7 @@ def assign_neighbours(node, atol = 0.01):
         left = None
     elif right.guid == node.guid:
         right = None
-    results = [n.geom_type if n != None else None for n in [upper, lower, left, right]]
+    results = [getattr(node, return_type, f"no {return_type} attribute") if n != None else None for n in [upper, lower, left, right]]
     return results
 def get_base_info(node):
     vertex = node.geom_info["vertex"]

@@ -33,12 +33,13 @@ def main():
             node.near = [graph[guid] for guid in graph.bvh_query(node.geom_info["bbox"])
                          if guid != node.guid]
     
-    guid = "3hYzt4oV51QQCZgo4StTTx"
+    guid = "1GQtQBII1Ciel1nBYV7cFW"
     node = graph[guid]
     intrindic_features = [CP.get_Intrinsic_features(graph, guid) for guid in graph.node_dict.keys()]
     # print("Finished Extracting Intrinsic Features")
     # contextural_features = [CP.get_contextural_features(graph, guid) for guid in graph.node_dict.keys()]
-    testing = CP.get_contextural_features(graph, guid)
+    testing = CP.assign_neighbours(node, return_type= "guid")
+    print(testing)
 
 
 

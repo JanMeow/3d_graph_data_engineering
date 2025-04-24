@@ -269,7 +269,7 @@ def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
     if right.guid == node.guid:
         right = None
 
-    results = [getattr(node, return_type, f"no {return_type} attribute") if n != None else None for n in [upper, lower, left, right]]
+    results = [getattr(node, return_type, f"no {return_type} attribute") if node != None else None for node in [upper, lower, left, right]]
     return results
 def get_base_info(node):
     vertex = node.geom_info["vertex"]

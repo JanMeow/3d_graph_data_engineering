@@ -405,9 +405,10 @@ def get_edge_attr_for_GNN(node, neighbour):
     distance_3D = np.linalg.norm(GP.get_centre_point(node.geom_info["bbox"]) - GP.get_centre_point(neighbour.geom_info["bbox"]))
     volume_ratio = node.intrinsic_features["Volume"] / neighbour.intrinsic_features["Volume"]
     height_ratio = node.intrinsic_features["OOBB_Z_Extent"] / neighbour.intrinsic_features["OOBB_Z_Extent"]
-    angle_z = np.arccos(np.dot(node.principal_axes[2], neighbour.principal_axes[2]))
-    angle_y = np.arccos(np.dot(node.principal_axes[1], neighbour.principal_axes[1]))
-    angle_x = np.arccos(np.dot(node.principal_axes[0], neighbour.principal_axes[0]))
+    angle_z = np.arccos(np.clip(np.dot(node.principal_axes[2], neighbour.principal_axes[2]), -1.0, 1.0))
+    angle_y = np.arccos(np.clip(np.dot(node.principal_axes[1], neighbour.principal_axes[1]), -1.0, 1.0))
+    angle_x = np.arccos(np.clip(np.dot(node.principal_axes[0], neighbour.principal_axes[0]), -1.0, 1.0))
+
 
     return np.array([z_diff, cp_z_diff, cp_y_diff, cp_x_diff, distance_3D, volume_ratio, height_ratio, angle_z, angle_y, angle_x])
 

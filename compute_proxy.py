@@ -385,3 +385,29 @@ def get_rel_position(graph, target_pt):
     world_extent = world_xyz[1] - world_xyz[0]
     relative_position = (target_pt - world_xyz[0])/world_extent
     return relative_position
+def get_edge_attr_for_GNN(node, neighbour):
+    """
+    Get the edge attributes for the GNN from the neighbours
+    [
+        z_diff,
+        cp_diff,
+        distance_3D,
+        volume_ratio,
+        height_ratio,
+        angle_z,
+    ]
+    """
+    # Get the edge attributes
+    z_diff = abs(node.geom_info["bbox"][1][2] - neighbour.geom_info["bbox"][0][2])
+    cp_z_diff = node.intrinsic_features["Relative_CP_Z"] - neighbour.intrinsic_features["Relative_CP_Z"]
+    cp_y_diff = node.intrinsic_features["Relative_CP_Y"] - neighbour.intrinsic_features["Relative_CP_Y"]
+    cp_x_diff = node.intrinsic_features["Relative_CP_X"] - neighbour.intrinsic_features["Relative_CP_X"]
+    distance_3D = np.linalg.norm(GP.get_centre_point(node.geom_info["bbox"]) - GP.get_centre_point(neighbour.geom_info["bbox"]))
+    volume_ratio = node.intrinsic_features["Volume"] / neighbour.intrinsic_features["Volume"]
+    height_ratio = node.intrinsic_features["OOBB_Z_Extent"] / neighbour.intrinsic_features["OOBB_Z_Extent"]
+    angle_z = np.arccos(np.dot(node.principal_axes[2], neighbour.principal_axes[2]))
+    angle_y = np.arccos(np.dot(node.principal_axes[1], neighbour.principal_axes[1]))
+    angle_x = np.arccos(np.dot(node.principal_axes[0], neighbour.principal_axes[0]))
+
+    return np.array([z_diff, cp_z_diff, cp_y_diff, cp_x_diff, distance_3D, volume_ratio, height_ratio, angle_z, angle_y, angle_x])
+

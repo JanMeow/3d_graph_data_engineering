@@ -38,7 +38,7 @@ def main():
     intrindic_features = [CP.get_Intrinsic_features(graph, guid) for guid in graph.node_dict.keys()]
     # print("Finished Extracting Intrinsic Features")
     # contextural_features = [CP.get_contextural_features(graph, guid) for guid in graph.node_dict.keys()]
-    testing = CP.assign_neighbours(node, return_type= "guid")
+    testing = CP.get_edge_attr_horizontal_relatives(graph, node)
     print(testing)
 
 

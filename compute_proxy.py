@@ -268,7 +268,7 @@ def assign_neighbours(node, atol = 0.01, return_type = "geom_type"):
         left = None
     if right.guid == node.guid:
         right = None
-
+    
     results = [getattr(node, return_type, f"no {return_type} attribute") if node != None else None for node in [upper, lower, left, right]]
     return results
 def get_base_info(node):
@@ -398,6 +398,8 @@ def get_edge_attr_for_GNN(node, neighbour):
     ]
     """
     # Get the edge attributes
+    bbox0_min, bbox0_max = node.geom_info["bbox"]
+    bbox1_min, bbox1_max = neighbour.geom_info["bbox"]
     z_diff = abs(node.geom_info["bbox"][1][2] - neighbour.geom_info["bbox"][0][2])
     cp_z_diff = node.intrinsic_features["Relative_CP_Z"] - neighbour.intrinsic_features["Relative_CP_Z"]
     cp_y_diff = node.intrinsic_features["Relative_CP_Y"] - neighbour.intrinsic_features["Relative_CP_Y"]
@@ -408,7 +410,29 @@ def get_edge_attr_for_GNN(node, neighbour):
     angle_z = np.arccos(np.clip(np.dot(node.principal_axes[2], neighbour.principal_axes[2]), -1.0, 1.0))
     angle_y = np.arccos(np.clip(np.dot(node.principal_axes[1], neighbour.principal_axes[1]), -1.0, 1.0))
     angle_x = np.arccos(np.clip(np.dot(node.principal_axes[0], neighbour.principal_axes[0]), -1.0, 1.0))
+    x_overlap = max(0, min(bbox1_max[0], bbox1_max[0]) - max(bbox1_min[0], bbox1_min[0]))
+    y_overlap = max(0, min(bbox1_max[1], bbox1_max[1]) - max(bbox1_min[1], bbox1_min[1]))
+    z_overlap = max(0, min(bbox1_max[2], bbox1_max[2]) - max(bbox1_min[2], bbox1_min[2]))
 
-
-    return np.array([z_diff, cp_z_diff, cp_y_diff, cp_x_diff, distance_3D, volume_ratio, height_ratio, angle_z, angle_y, angle_x])
-
+    return np.array([z_diff, cp_z_diff, cp_y_diff, cp_x_diff, distance_3D, volume_ratio, height_ratio, 
+                     angle_z, angle_y, angle_x, x_overlap, y_overlap, z_overlap])
+def get_edge_attr_horizontal_relatives(graph, node, extent = 0.05):
+    world_max = graph.bbox.copy()
+    bbox = node.geom_info["bbox"]
+    node_cp = GP.get_centre_point(bbox)
+    bbox_z_centre = (bbox[1][2] + bbox[0][2]) / 2
+    world_max[0][2] = bbox_z_centre -  extent
+    world_max[1][2] = bbox_z_centre +  extent
+    bvh_query = graph.bvh_query(world_max)
+    return {guid:get_edge_attr_for_GNN(node, graph[guid])for guid in bvh_query}
+def get_edge_attr_get_vertical_relatives(graph, node, extent = 0.05):
+    world_max = graph.bbox.copy()
+    bbox = node.geom_info["bbox"]
+    bbox_x_centre = (bbox[1][0] + bbox[0][0]) / 2
+    bbox_y_centre = (bbox[1][1] + bbox[0][1]) / 2
+    world_max[0][0] = bbox_x_centre - extent
+    world_max[1][0] = bbox_x_centre + extent
+    world_max[0][1] = bbox_y_centre - extent
+    world_max[1][1] = bbox_y_centre + extent
+    bvh_query = graph.bvh_query(world_max)
+    return {guid:get_edge_attr_for_GNN(node, graph[guid])for guid in bvh_query}

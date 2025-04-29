@@ -410,12 +410,20 @@ def get_edge_attr_for_GNN(node, neighbour):
     angle_z = np.arccos(np.clip(np.dot(node.principal_axes[2], neighbour.principal_axes[2]), -1.0, 1.0))
     angle_y = np.arccos(np.clip(np.dot(node.principal_axes[1], neighbour.principal_axes[1]), -1.0, 1.0))
     angle_x = np.arccos(np.clip(np.dot(node.principal_axes[0], neighbour.principal_axes[0]), -1.0, 1.0))
-    x_overlap = max(0, min(bbox1_max[0], bbox1_max[0]) - max(bbox1_min[0], bbox1_min[0]))
-    y_overlap = max(0, min(bbox1_max[1], bbox1_max[1]) - max(bbox1_min[1], bbox1_min[1]))
-    z_overlap = max(0, min(bbox1_max[2], bbox1_max[2]) - max(bbox1_min[2], bbox1_min[2]))
+    x_overlap = max(0, min(bbox0_max[0], bbox1_max[0]) - max(bbox0_min[0], bbox1_min[0]))
+    y_overlap = max(0, min(bbox0_max[1], bbox1_max[1]) - max(bbox0_min[1], bbox1_min[1]))
+    z_overlap = max(0, min(bbox0_max[2], bbox1_max[2]) - max(bbox0_min[2], bbox1_min[2]))
+    direction_vec = GP.get_centre_point(neighbour.geom_info["bbox"]) - GP.get_centre_point(node.geom_info["bbox"])
+    direction_vec /= np.linalg.norm(direction_vec) + 1e-8  # Normalize
+    overlap_volume = x_overlap * y_overlap * z_overlap
+
+
+
 
     return np.array([z_diff, cp_z_diff, cp_y_diff, cp_x_diff, distance_3D, volume_ratio, height_ratio, 
-                     angle_z, angle_y, angle_x, x_overlap, y_overlap, z_overlap])
+                     angle_z, angle_y, angle_x, x_overlap, y_overlap, z_overlap,
+                     direction_vec[0], direction_vec[1], direction_vec[2],
+                     overlap_volume])
 def get_edge_attr_horizontal_relatives(graph, node, extent = 0.05):
     world_max = graph.bbox.copy()
     bbox = node.geom_info["bbox"]
